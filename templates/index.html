@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Restaurant Management System</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="sidebar">
+    <h1>RMS</h1>
+    <div class="stats">
+      <div class="stat-card">
+        <h3>{{ pending_orders }}</h3>
+        <p>Pending</p>
+      </div>
+      <div class="stat-card">
+        <h3>{{ available_tables }}</h3>
+        <p>Tables</p>
+      </div>
+      <div class="stat-card">
+        <h3>₹{{ "%.2f"|format(today_sales) }}</h3>
+        <p>Sales</p>
+      </div>
+    </div>
+    <div class="filters">
+      <select id="statusFilter" onchange="filterOrders()">
+        <option value="All" {% if status_filter == 'All' %}selected{% endif %}>All Status</option>
+        <option value="Pending" {% if status_filter == 'Pending' %}selected{% endif %}>Pending</option>
+        <option value="Preparing" {% if status_filter == 'Preparing' %}selected{% endif %}>Preparing</option>
+        <option value="Completed" {% if status_filter == 'Completed' %}selected{% endif %}>Completed</option>
+      </select>
+      <select id="typeFilter" onchange="filterOrders()">
+        <option value="All" {% if order_type_filter == 'All' %}selected{% endif %}>All Types</option>
+        <option value="Dine-in" {% if order_type_filter == 'Dine-in' %}selected{% endif %}>Dine-in</option>
+        <option value="Takeaway" {% if order_type_filter == 'Takeaway' %}selected{% endif %}>Takeaway</option>
+        <option value="Delivery" {% if order_type_filter == 'Delivery' %}selected{% endif %}>Delivery</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+            <div class="flash-message flash-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('orders')">Orders</button>
+      <button class="nav-tab" onclick="switchTab('new-order')">New Order</button>
+      <button class="nav-tab" onclick="switchTab('customers')">Customers</button>
+    </div>
+
+    <!-- ORDERS TAB -->
+    <div id="orders" class="tab-content">
+      <div class="table-responsive">
+        <table id="ordersTable">
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Date & Time</th>
+              <th>Type</th>
+              <th>Table</th>
+              <th>Items</th>
+              <th>Total (₹)</th>
+              <th>Payment</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ordersBody">
+            {% for o in orders %}
+            <tr data-status="{{ o[5] }}" data-type="{{ o[6] }}">
+              <td><b>#{{ o[0] }}</b></td>
+              <td>{{ o[1] }}</td>
+              <td>{{ o[2] }}</td>
+              <td><span class="type-badge {{ o[6].lower() }}">{{ o[6] }}</span></td>
+              <td>{% if o[7] %}Table {{ o[7] }}{% else %}-{% endif %}</td>
+              <td class="items-list">{{ o[8] }}</td>
+              <td><b>₹{{ "%.2f"|format(o[3]) }}</b></td>
+              <td>{{ o[4] }}</td>
+              <td><span class="status-badge {{ o[5].lower() }}">{{ o[5] }}</span></td>
+              <td>
+                <div class="action-buttons">
+                  <select class="action-select" onchange="updateStatus({{o[0]}}, this.value)">
+                    <option value="">Update</option>
+                    <option value="Pending" {% if o[5] == 'Pending' %}selected{% endif %}>Pending</option>
+                    <option value="Preparing" {% if o[5] == 'Preparing' %}selected{% endif %}>Preparing</option>
+                    <option value="Completed" {% if o[5] == 'Completed' %}selected{% endif %}>Completed</option>
+                  </select>
+                  <a href="/delete/{{o[0]}}" class="delete" onclick="return confirm('Delete this order?')">Delete</a>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- NEW ORDER TAB -->
+    <div id="new-order" class="tab-content hidden">
+      <form action="/add" method="POST" id="orderForm">
+        <div class="order-form-container">
+          <div class="form-column">
+            <div class="form-section">
+              <h3 class="section-title">Customer Information</h3>
+              <div class="form-group">
+                <label>Select Customer <span class="required">*</span></label>
+                <select name="customer_id" id="customerSelect" onchange="toggleCustomerDetails()">
+                  <option value="new">New Customer</option>
+                  {% for c in customers %}
+                  <option value="{{c[0]}}">{{c[1]}} ({{c[2]}})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div id="customerDetails">
+                <div class="form-group">
+                  <label>Name <span class="required">*</span></label>
+                  <input type="text" name="name" id="customerName">
+                </div>
+                <div class="form-group">
+                  <label>Phone <span class="required">*</span></label>
+                  <input type="text" name="phone" id="customerPhone">
+                </div>
+                <div class="form-group">
+                  <label>Email</label>
+                  <input type="email" name="email" id="customerEmail">
+                </div>
+                <div class="form-group">
+                  <label>Address</label>
+                  <textarea name="address" id="customerAddress"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3 class="section-title">Order Details</h3>
+              <div class="form-group">
+                <label>Order Type <span class="required">*</span></label>
+                <div class="order-type-buttons">
+                  <label class="order-type-option">
+                    <input type="radio" name="order_type" value="Dine-in" id="orderTypeDineIn" checked onchange="toggleTableDetails()">
+                    <span class="order-type-label">Dine-in</span>
+                  </label>
+                  <label class="order-type-option">
+                    <input type="radio" name="order_type" value="Takeaway" onchange="toggleTableDetails()">
+                    <span class="order-type-label">Takeaway</span>
+                  </label>
+                  <label class="order-type-option">
+                    <input type="radio" name="order_type" value="Delivery" onchange="toggleTableDetails()">
+                    <span class="order-type-label">Delivery</span>
+                  </label>
+                </div>
+              </div>
+
+              <div id="tableDetails">
+                <div class="form-group">
+                  <label>Select Table</label>
+                  <select name="table_number">
+                    <option value="">No Table</option>
+                    {% for t in tables %}
+                    <option value="{{t[1]}}" {% if t[3] == 'Occupied' %}disabled{% endif %}>
+                      Table {{t[1]}} ({{t[2]}} seats) - {{t[3]}}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Payment Method <span class="required">*</span></label>
+                <select name="payment_method" required>
+                  <option value="Cash">Cash</option>
+                  <option value="Card">Card</option>
+                  <option value="UPI">UPI</option>
+                  <option value="Net Banking">Net Banking</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Discount (%)</label>
+                <input type="number" name="discount" min="0" max="100" value="0" step="0.1">
+              </div>
+            </div>
+          </div>
+
+          <!-- MENU COLUMN -->
+          <div class="form-column">
+            <div class="form-section menu-full">
+              <h3 class="section-title">Menu Items <span class="required">*</span></h3>
+              <div class="menu-search">
+                <input type="text" id="menuSearch" placeholder="Search items..." onkeyup="filterMenu()">
+              </div>
+              <div class="menu-categories">
+                <!-- Categories will be populated by JavaScript based on menu data -->
+                {% set categories = {} %}
+                {% for m in menu %}
+                  {% set cat = m[2] %}
+                  {% if cat not in categories %}
+                    {% set _ = categories.update({cat: []}) %}
+                  {% endif %}
+                  {% set _ = categories[cat].append(m) %}
+                {% endfor %}
+
+                {% for category, items in categories.items() %}
+                <div class="menu-category">
+                  <h4 class="category-title">{{ category }}</h4>
+                  <div class="menu-grid">
+                    {% for m in items %}
+                    <label class="menu-item-card" data-item-name="{{ m[1].lower() }}" data-category="{{ m[2].lower() }}">
+                      <input type="checkbox" name="items" value="{{m[0]}}" onchange="updateOrderSummary()">
+                      <div class="menu-item-content">
+                        <div class="menu-item-info">
+                          <span class="menu-item-name">{{m[1]}}</span>
+                          <span class="menu-item-price">₹{{m[3]}}</span>
+                        </div>
+                        <div class="menu-item-check">✓</div>
+                      </div>
+                    </label>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+
+              <div class="order-summary">
+                <h4>Order Summary</h4>
+                <div id="selectedItemsList">No items selected</div>
+                <div class="summary-total">
+                  <span>Total:</span>
+                  <span id="orderTotal">₹0.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn-submit">Place Order</button>
+          <button type="button" class="btn-cancel" onclick="resetForm()">Clear</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- CUSTOMERS TAB -->
+    <div id="customers" class="tab-content hidden">
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Address</th>
+              <th>Joined On</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in customers %}
+            <tr>
+              <td><b>#{{ c[0] }}</b></td>
+              <td>{{ c[1] }}</td>
+              <td>{{ c[2] }}</td>
+              <td>{{ c[3] if c[3] else '-' }}</td>
+              <td>{{ c[4] if c[4] else '-' }}</td>
+              <td>{{ c[5].strftime('%d %b %Y') if c[5] else '-' }}</td>
+              <td>
+                <a href="/delete_customer/{{c[0]}}" class="delete" onclick="return confirm('Delete customer? Only if no orders.')">Delete</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

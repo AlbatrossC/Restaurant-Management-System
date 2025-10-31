@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Error - Restaurant Management System</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    .error-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .error-box {
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      max-width: 500px;
+    }
+    
+    .error-box h1 {
+      color: #dc3545;
+      font-size: 48px;
+      margin: 0 0 20px 0;
+    }
+    
+    .error-box p {
+      color: #666;
+      font-size: 16px;
+      margin-bottom: 30px;
+    }
+    
+    .error-box a {
+      display: inline-block;
+      padding: 12px 25px;
+      background: #007bff;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: 500;
+      transition: background 0.3s;
+    }
+    
+    .error-box a:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="error-container">
+    <div class="error-box">
+      <h1>⚠️ Error</h1>
+      <p>{{ message }}</p>
+      <a href="/">Return to Home</a>
+    </div>
+  </div>
+</body>
+</html>
