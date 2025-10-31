@@ -12,7 +12,7 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'local-running-secret-key')
 
-# Database configuration
+# Database configuration - Base config
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
     'user': os.getenv('DB_USER', 'root'),
@@ -20,6 +20,18 @@ DB_CONFIG = {
     'database': os.getenv('DB_NAME', 'restaurant_db'),
     'autocommit': False
 }
+
+# Add SSL configuration only if running on Vercel (or if DB_HOST is not localhost)
+# This detects Vercel deployment via VERCEL environment variable or non-localhost DB
+if os.getenv('VERCEL') or (DB_CONFIG['host'] not in ['localhost', '127.0.0.1']):
+    DB_CONFIG.update({
+        'ssl_ca': os.getenv('SSL_CA'),  # Optional: path to CA certificate
+        'ssl_verify_identity': True,     # Verify server identity
+        'ssl_disabled': False
+    })
+    print("SSL enabled for database connection")
+else:
+    print("Running locally - SSL disabled")
 
 def get_db_connection():
     """Create and return a database connection"""
