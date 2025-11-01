@@ -1,63 +1,407 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Error - Restaurant Management System</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Error — Restaurant Management</title>
   <style>
-    .error-container {
+    :root {
+      --bg: #f9fafb;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #2563eb;
+      --danger: #ef4444;
+      --warn: #facc15;
+      --info: #3b82f6;
+      --radius: 12px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
       display: flex;
-      flex-direction: column;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       min-height: 100vh;
-      padding: 20px;
-      text-align: center;
+      padding: 24px;
+      color: var(--text);
     }
-    
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 48px;
+      max-width: 720px;
+      width: 100%;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.03);
+    }
+
+    .icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+
+    .config { background: #fff7e6; color: #a16207; }
+    .database, .connection { background: #fee2e2; color: #991b1b; }
+    .query { background: #ffe4e6; color: #b91c1c; }
+    .default { background: #f1f5f9; color: #475569; }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 14px;
+      margin-bottom: 28px;
+    }
+
     .error-box {
-      background: white;
-      padding: 40px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      max-width: 500px;
+      background: #fef2f2;
+      border-left: 4px solid var(--danger);
+      padding: 16px 20px;
+      border-radius: 6px;
+      margin-bottom: 28px;
+      font-family: "Consolas", monospace;
     }
-    
-    .error-box h1 {
-      color: #dc3545;
-      font-size: 48px;
-      margin: 0 0 20px 0;
+
+    .error-box strong {
+      font-family: "Inter", sans-serif;
+      font-size: 15px;
+      display: block;
+      margin-bottom: 6px;
     }
-    
-    .error-box p {
-      color: #666;
+
+    section {
+      margin-bottom: 28px;
+    }
+
+    section h2 {
       font-size: 16px;
-      margin-bottom: 30px;
+      font-weight: 600;
+      margin-bottom: 12px;
     }
-    
-    .error-box a {
-      display: inline-block;
-      padding: 12px 25px;
-      background: #007bff;
-      color: white;
-      text-decoration: none;
-      border-radius: 5px;
+
+    p, li {
+      font-size: 15px;
+      line-height: 1.6;
+      color: var(--text);
+    }
+
+    ul {
+      list-style: disc;
+      margin-left: 20px;
+      margin-bottom: 12px;
+    }
+
+    .code {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      font-family: monospace;
+      font-size: 14px;
+      overflow-x: auto;
+      margin: 10px 0;
+    }
+
+    .info, .warning {
+      border-left: 4px solid;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    .info {
+      background: #eff6ff;
+      border-color: var(--info);
+      color: #1e40af;
+    }
+
+    .warning {
+      background: #fffbea;
+      border-color: var(--warn);
+      color: #92400e;
+    }
+
+    .diagnostic {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      font-size: 14px;
+    }
+
+    .diagnostic-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .diagnostic-item:last-child {
+      border-bottom: none;
+    }
+
+    .diagnostic-label {
       font-weight: 500;
-      transition: background 0.3s;
+      color: var(--text);
     }
-    
-    .error-box a:hover {
-      background: #0056b3;
+
+    .diagnostic-value {
+      color: var(--muted);
+      font-family: monospace;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 32px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 12px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 500;
+      transition: 0.2s ease;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-secondary {
+      background: #fff;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background: #f1f5f9;
+    }
+
+    @media (max-width: 600px) {
+      .card {
+        padding: 28px 20px;
+      }
+      .actions {
+        flex-direction: column;
+      }
+      .btn {
+        width: 100%;
+      }
     }
   </style>
 </head>
+
 <body>
-  <div class="error-container">
-    <div class="error-box">
-      <h1>⚠️ Error</h1>
-      <p>{{ message }}</p>
-      <a href="/">Return to Home</a>
+  <div class="card">
+    {% if '.env file not found' in error %}
+      <div class="icon config">⚙️</div>
+      <h1>Missing Configuration File</h1>
+      <p class="subtitle">The <code>.env</code> file is required but not found.</p>
+
+      <div class="error-box">
+        <strong>Exact Error</strong>
+        {{ error }}
+      </div>
+
+      <section>
+        <h2>Why This Happens</h2>
+        <p>
+          Your Flask app depends on a <code>.env</code> file for environment variables such as database credentials and secret keys. Without it, configuration cannot load.
+        </p>
+      </section>
+
+      <section>
+        <h2>Fix Steps</h2>
+        <ul>
+          <li>Create a file named <code>.env</code> in your project’s root folder.</li>
+          <li>Paste the following template:</li>
+        </ul>
+        <div class="code">
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=restaurant_db
+SECRET_KEY=your-secret-key
+        </div>
+        <ul>
+          <li>Replace the placeholders with valid values.</li>
+          <li>Restart your Flask server.</li>
+        </ul>
+      </section>
+
+    {% elif 'does not exist' in error or 'Unknown database' in error %}
+      <div class="icon database">💾</div>
+      <h1>Database Missing</h1>
+      <p class="subtitle">The database doesn’t exist or hasn’t been initialized.</p>
+
+      <div class="error-box">
+        <strong>Exact Error</strong>
+        {{ error }}
+      </div>
+
+      <section>
+        <h2>Why This Happens</h2>
+        <p>The MySQL connection is fine, but the database <code>restaurant_db</code> is not yet created.</p>
+      </section>
+
+      <section>
+        <h2>Fix Steps</h2>
+        <ul>
+          <li>Run your database setup script:</li>
+        </ul>
+        <div class="code">python db_initializer.py</div>
+        <div class="info"><strong>Note:</strong> The script automatically creates the database and required tables if missing.</div>
+      </section>
+
+    {% elif 'Access denied' in error %}
+      <div class="icon connection">🔒</div>
+      <h1>Access Denied</h1>
+      <p class="subtitle">Invalid database credentials.</p>
+
+      <div class="error-box">
+        <strong>Exact Error</strong>
+        {{ error }}
+      </div>
+
+      <section>
+        <h2>Diagnostic Info</h2>
+        <div class="diagnostic">
+          <div class="diagnostic-item"><span class="diagnostic-label">Host</span><span class="diagnostic-value">{{ db_host or 'localhost' }}</span></div>
+          <div class="diagnostic-item"><span class="diagnostic-label">Port</span><span class="diagnostic-value">{{ db_port or '3306' }}</span></div>
+          <div class="diagnostic-item"><span class="diagnostic-label">User</span><span class="diagnostic-value">{{ db_user or 'root' }}</span></div>
+          <div class="diagnostic-item"><span class="diagnostic-label">Database</span><span class="diagnostic-value">{{ db_name or 'restaurant_db' }}</span></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Fix Steps</h2>
+        <ul>
+          <li>Open your <code>.env</code> file and verify <code>DB_USER</code> and <code>DB_PASSWORD</code>.</li>
+          <li>Test credentials manually:</li>
+        </ul>
+        <div class="code">mysql -u root -p</div>
+        <ul>
+          <li>If the login works, use that same password in <code>.env</code>.</li>
+          <li>Restart Flask after saving changes.</li>
+        </ul>
+      </section>
+
+    {% elif "Can't connect" in error or 'Connection refused' in error %}
+      <div class="icon connection">🚫</div>
+      <h1>Cannot Connect to MySQL</h1>
+      <p class="subtitle">The MySQL service is offline or unreachable.</p>
+
+      <div class="error-box">
+        <strong>Exact Error</strong>
+        {{ error }}
+      </div>
+
+      <section>
+        <h2>Fix Steps</h2>
+        <ul>
+          <li>Ensure MySQL is installed: <code>mysql --version</code></li>
+          <li>Start MySQL service:</li>
+        </ul>
+        <div class="code">
+# Windows
+net start MySQL80
+
+# macOS
+brew services start mysql
+
+# Linux
+sudo systemctl start mysql
+        </div>
+        <ul>
+          <li>Verify connection with <code>mysql -u root -p</code>.</li>
+          <li>Check that <code>DB_HOST</code> and <code>DB_PORT</code> in your <code>.env</code> are correct.</li>
+        </ul>
+      </section>
+
+    {% elif 'Failed to place order' in error or 'Failed to update' in error or 'Failed to delete' in error %}
+      <div class="icon query">❌</div>
+      <h1>Database Operation Failed</h1>
+      <p class="subtitle">A SQL query or transaction could not complete.</p>
+
+      <div class="error-box">
+        <strong>Exact Error</strong>
+        {{ error }}
+      </div>
+
+      <section>
+        <h2>Possible Causes</h2>
+        <ul>
+          <li>Tables missing or corrupted.</li>
+          <li>Invalid data type or constraint violation.</li>
+          <li>Foreign key mismatch or duplicate entry.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Fix Steps</h2>
+        <div class="warning"><strong>If tables are missing:</strong> Run <code>python db_initializer.py</code> to recreate them.</div>
+        <ul>
+          <li>Check error message for the table or column name.</li>
+          <li>Validate data types and constraints in your SQL models.</li>
+        </ul>
+      </section>
+
+    {% else %}
+      <div class="icon default">⚠️</div>
+      <h1>Unexpected Error</h1>
+      <p class="subtitle">An unhandled issue occurred.</p>
+
+      <div class="error-box">
+        <strong>Exact Error</strong>
+        {{ error }}
+      </div>
+
+      <section>
+        <h2>Troubleshooting Steps</h2>
+        <ul>
+          <li>Check your <code>.env</code> configuration.</li>
+          <li>Ensure MySQL is running.</li>
+          <li>Run <code>python db_initializer.py</code> to verify tables exist.</li>
+          <li>Inspect Flask logs for detailed tracebacks.</li>
+        </ul>
+      </section>
+    {% endif %}
+
+    <div class="actions">
+      <a href="/" class="btn btn-primary">🏠 Home</a>
+      <button onclick="window.history.back()" class="btn btn-secondary">← Go Back</button>
     </div>
   </div>
 </body>

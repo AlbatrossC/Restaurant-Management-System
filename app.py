@@ -6,55 +6,125 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 
-# Load environment variables
-load_dotenv()
+try:
+    from db_initializer import initialize_database
+    DB_INITIALIZER_AVAILABLE = True
+except ImportError:
+    DB_INITIALIZER_AVAILABLE = False
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'local-running-secret-key')
+app.secret_key = 'default-secret-key-change-in-production'
 
-# Database configuration - Base config
+# Check if .env file exists
+env_file_path = os.path.join(os.path.dirname(__file__), '.env')
+if not os.path.exists(env_file_path):
+    ENV_ERROR = ".env file not found. Please create a .env file with database configuration."
+    ENV_MISSING = True
+else:
+    load_dotenv()
+    ENV_MISSING = False
+    ENV_ERROR = None
+
+# Database configuration
 DB_CONFIG = {
     'host': os.getenv('DB_HOST', 'localhost'),
+    'port': int(os.getenv('DB_PORT', 3306)),
     'user': os.getenv('DB_USER', 'root'),
-    'password': os.getenv('DB_PASSWORD'),
-    'database': os.getenv('DB_NAME', 'restaurant_db'),
+    'password': os.getenv('DB_PASSWORD', ''),
     'autocommit': False
 }
 
-# Add SSL configuration only if running on Vercel (or if DB_HOST is not localhost)
-# This detects Vercel deployment via VERCEL environment variable or non-localhost DB
-if os.getenv('VERCEL') or (DB_CONFIG['host'] not in ['localhost', '127.0.0.1']):
-    DB_CONFIG.update({
-        'ssl_ca': os.getenv('SSL_CA'),  # Optional: path to CA certificate
-        'ssl_verify_identity': True,     # Verify server identity
-        'ssl_disabled': False
-    })
-    print("SSL enabled for database connection")
-else:
-    print("Running locally - SSL disabled")
+DB_NAME = os.getenv('DB_NAME', 'restaurant_db')
+
+if not ENV_MISSING and os.getenv('SECRET_KEY'):
+    app.secret_key = os.getenv('SECRET_KEY')
+
+DB_CONNECTION_ERROR = None
+
+
+def render_error(error_msg):
+    """Render error page with diagnostic information"""
+    return render_template('error.html', 
+                         error=error_msg,
+                         db_host=DB_CONFIG.get('host'),
+                         db_port=DB_CONFIG.get('port'),
+                         db_user=DB_CONFIG.get('user'),
+                         db_name=DB_NAME)
+
+
+def check_and_initialize_database():
+    """Check if database exists, initialize if needed"""
+    if ENV_MISSING or not DB_INITIALIZER_AVAILABLE:
+        return False
+    
+    try:
+        config = DB_CONFIG.copy()
+        config['database'] = DB_NAME
+        connection = mysql.connector.connect(**config)
+        
+        cursor = connection.cursor()
+        required_tables = ['Customers', 'Menu', 'Tables', 'Orders']
+        cursor.execute("SHOW TABLES")
+        existing_tables = [table[0] for table in cursor.fetchall()]
+        cursor.close()
+        connection.close()
+        
+        if all(table in existing_tables for table in required_tables):
+            print("✓ Database ready")
+            return True
+        else:
+            return initialize_database()
+            
+    except Error as e:
+        if "Unknown database" in str(e):
+            return initialize_database()
+        else:
+            print(f"Database error: {e}")
+            return False
+
 
 def get_db_connection():
     """Create and return a database connection"""
+    global DB_CONNECTION_ERROR
+    
     try:
-        connection = mysql.connector.connect(**DB_CONFIG)
+        config = DB_CONFIG.copy()
+        config['database'] = DB_NAME
+        connection = mysql.connector.connect(**config)
+        DB_CONNECTION_ERROR = None
         return connection
     except Error as e:
-        print(f"Error connecting to MySQL: {e}")
+        error_msg = str(e)
+        
+        if "Unknown database" in error_msg:
+            DB_CONNECTION_ERROR = f"Database '{DB_NAME}' does not exist. Run 'python db_initializer.py' to create it."
+        elif "Access denied" in error_msg:
+            DB_CONNECTION_ERROR = f"Access denied for user '{DB_CONFIG['user']}'@'{DB_CONFIG['host']}'. Check your DB_USER and DB_PASSWORD in .env file."
+        elif "Can't connect to MySQL server" in error_msg:
+            DB_CONNECTION_ERROR = f"Can't connect to MySQL server at {DB_CONFIG['host']}:{DB_CONFIG['port']}. Make sure MySQL is running."
+        elif "Connection refused" in error_msg:
+            DB_CONNECTION_ERROR = f"Connection refused to {DB_CONFIG['host']}:{DB_CONFIG['port']}. MySQL server is not accepting connections."
+        else:
+            DB_CONNECTION_ERROR = f"Database connection error: {error_msg}"
+        
         return None
 
-# Helper: Format datetime to "31 Oct 8:27 pm"
+
 def format_datetime(dt):
     """Convert datetime to '31 Oct 8:27 pm' format"""
     if not dt:
         return "-"
-    return dt.strftime("%d %b %I:%M %p").lstrip("0").replace(" 0", " ").lower().replace(" pm", " pm").replace(" am", " am")
+    return dt.strftime("%d %b %I:%M %p").lstrip("0").replace(" 0", " ").lower()
+
 
 @app.route('/')
 def index():
+    if ENV_MISSING:
+        return render_error(ENV_ERROR)
+    
     connection = get_db_connection()
     if not connection:
-        flash('Database connection failed', 'error')
-        return redirect('/')
+        return render_error(DB_CONNECTION_ERROR)
 
     cursor = connection.cursor()
 
@@ -62,7 +132,6 @@ def index():
         status_filter = request.args.get('status', 'All')
         order_type_filter = request.args.get('order_type', 'All')
 
-        # Query orders with customer and items
         query = """
             SELECT o.order_id, c.name, o.order_date, o.total_amount, o.payment_method, 
                    o.order_status, o.order_type, o.table_number, o.items
@@ -82,7 +151,6 @@ def index():
         cursor.execute(query, params)
         orders_raw = cursor.fetchall()
 
-        # Format orders: date + items as string
         orders = []
         for o in orders_raw:
             items_json = o[8] or '[]'
@@ -95,7 +163,6 @@ def index():
                 o[0], o[1], format_datetime(o[2]), o[3], o[4], o[5], o[6], o[7] or '-', items_str
             ))
 
-        # Fetch menu, customers, tables
         cursor.execute("SELECT item_id, item_name, category, price FROM Menu WHERE is_available = TRUE ORDER BY category, item_name")
         menu = cursor.fetchall()
 
@@ -105,7 +172,6 @@ def index():
         cursor.execute("SELECT table_id, table_number, capacity, status FROM Tables ORDER BY table_number")
         tables = cursor.fetchall()
 
-        # Stats
         cursor.execute("SELECT COUNT(*) FROM Orders WHERE order_status = 'Pending'")
         pending_orders = cursor.fetchone()[0]
 
@@ -127,9 +193,10 @@ def index():
                                order_type_filter=order_type_filter)
 
     except Error as e:
-        print(f"Database error: {e}")
-        flash('An error occurred while loading data.', 'error')
-        return redirect('/')
+        error_msg = f"Database query error: {str(e)}"
+        if "doesn't exist" in str(e).lower():
+            error_msg = f"Database table is missing: {str(e)}. Run 'python db_initializer.py' to create all tables."
+        return render_error(error_msg)
     finally:
         cursor.close()
         connection.close()
@@ -137,10 +204,12 @@ def index():
 
 @app.route('/add', methods=['POST'])
 def add_order():
+    if ENV_MISSING:
+        return render_error(ENV_ERROR)
+    
     connection = get_db_connection()
     if not connection:
-        flash('Database connection failed', 'error')
-        return redirect('/')
+        return render_error(DB_CONNECTION_ERROR)
 
     cursor = connection.cursor()
 
@@ -156,7 +225,6 @@ def add_order():
         discount = float(request.form.get('discount', 0))
         selected_items = request.form.getlist('items')
 
-        # Validate items
         if not selected_items:
             flash('Please select at least one item', 'warning')
             return redirect('/')
@@ -196,15 +264,14 @@ def add_order():
             flash('Invalid items selected', 'error')
             return redirect('/')
 
-        # Apply discount
         total_after_discount = total - (total * discount / 100)
 
-        # Validate table for dine-in
+        # Validate table
         if order_type == 'Dine-in' and table_number:
             cursor.execute("SELECT status FROM Tables WHERE table_number = %s", (table_number,))
             table_status = cursor.fetchone()
             if table_status and table_status[0] == 'Occupied':
-                flash('Selected table is already occupied.', 'warning')
+                flash('Selected table is already occupied', 'warning')
                 return redirect('/')
 
         # Insert order
@@ -225,13 +292,14 @@ def add_order():
 
     except Error as e:
         connection.rollback()
-        print(f"Database error: {e}")
-        flash(f'Failed to place order: {str(e)}', 'error')
-        return redirect('/')
-    except ValueError as e:
-        connection.rollback()
-        flash('Invalid input data', 'error')
-        return redirect('/')
+        error_msg = f"Failed to place order: {str(e)}"
+        if "foreign key constraint" in str(e).lower():
+            error_msg = f"Failed to place order: Referenced customer or menu item doesn't exist. {str(e)}"
+        elif "duplicate entry" in str(e).lower():
+            error_msg = f"Failed to place order: Duplicate entry detected. {str(e)}"
+        elif "doesn't exist" in str(e).lower():
+            error_msg = f"Failed to place order: Required table is missing. Run 'python db_initializer.py'. {str(e)}"
+        return render_error(error_msg)
     finally:
         cursor.close()
         connection.close()
@@ -239,10 +307,12 @@ def add_order():
 
 @app.route('/update_status/<int:order_id>/<status>')
 def update_status(order_id, status):
+    if ENV_MISSING:
+        return render_error(ENV_ERROR)
+    
     connection = get_db_connection()
     if not connection:
-        flash('Database connection failed', 'error')
-        return redirect('/')
+        return render_error(DB_CONNECTION_ERROR)
 
     cursor = connection.cursor()
 
@@ -261,7 +331,6 @@ def update_status(order_id, status):
 
         table_number, order_type, current_status = order_info
 
-        # Update status
         cursor.execute("UPDATE Orders SET order_status = %s WHERE order_id = %s", (status, order_id))
         connection.commit()
 
@@ -279,9 +348,10 @@ def update_status(order_id, status):
 
     except Error as e:
         connection.rollback()
-        print(f"Database error: {e}")
-        flash('Failed to update status', 'error')
-        return redirect('/')
+        error_msg = f"Failed to update status: {str(e)}"
+        if "doesn't exist" in str(e).lower():
+            error_msg = f"Failed to update status: Orders or Tables table is missing. Run 'python db_initializer.py'. {str(e)}"
+        return render_error(error_msg)
     finally:
         cursor.close()
         connection.close()
@@ -289,10 +359,12 @@ def update_status(order_id, status):
 
 @app.route('/delete/<int:order_id>')
 def delete_order(order_id):
+    if ENV_MISSING:
+        return render_error(ENV_ERROR)
+    
     connection = get_db_connection()
     if not connection:
-        flash('Database connection failed', 'error')
-        return redirect('/')
+        return render_error(DB_CONNECTION_ERROR)
 
     cursor = connection.cursor()
 
@@ -306,7 +378,6 @@ def delete_order(order_id):
 
         table_number, order_type = result
 
-        # Delete order
         cursor.execute("DELETE FROM Orders WHERE order_id = %s", (order_id,))
         connection.commit()
 
@@ -327,9 +398,10 @@ def delete_order(order_id):
 
     except Error as e:
         connection.rollback()
-        print(f"Database error: {e}")
-        flash('Failed to delete order', 'error')
-        return redirect('/')
+        error_msg = f"Failed to delete order: {str(e)}"
+        if "foreign key constraint" in str(e).lower():
+            error_msg = f"Failed to delete order: This order is referenced by other records. {str(e)}"
+        return render_error(error_msg)
     finally:
         cursor.close()
         connection.close()
@@ -337,10 +409,12 @@ def delete_order(order_id):
 
 @app.route('/delete_customer/<int:customer_id>')
 def delete_customer(customer_id):
+    if ENV_MISSING:
+        return render_error(ENV_ERROR)
+    
     connection = get_db_connection()
     if not connection:
-        flash('Database connection failed', 'error')
-        return redirect('/')
+        return render_error(DB_CONNECTION_ERROR)
 
     cursor = connection.cursor()
 
@@ -360,13 +434,19 @@ def delete_customer(customer_id):
 
     except Error as e:
         connection.rollback()
-        print(f"Database error: {e}")
-        flash('Failed to delete customer', 'error')
-        return redirect('/')
+        error_msg = f"Failed to delete customer: {str(e)}"
+        if "foreign key constraint" in str(e).lower():
+            error_msg = f"Failed to delete customer: Customer has existing orders. {str(e)}"
+        elif "doesn't exist" in str(e).lower():
+            error_msg = f"Failed to delete customer: Customers table is missing. Run 'python db_initializer.py'. {str(e)}"
+        return render_error(error_msg)
     finally:
         cursor.close()
         connection.close()
 
 
 if __name__ == '__main__':
+    if not ENV_MISSING:
+        check_and_initialize_database()
+    
     app.run(debug=True)
