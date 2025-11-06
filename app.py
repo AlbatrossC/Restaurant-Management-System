@@ -449,4 +449,4 @@ if __name__ == '__main__':
     if not ENV_MISSING:
         check_and_initialize_database()
     
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
